@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Camera, Search, Upload, Leaf, Sun, Calendar, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { getPlantInfo, PlantData } from "@/data/plantDatabase";
-import { generatePlantInfo, GeminiPlantData } from "@/utils/geminiApi";
+import { generatePlantInfo, identifyPlantFromImage, GeminiPlantData } from "@/utils/geminiApi";
 
 interface PlantIdentificationProps {
   onBack: () => void;
@@ -17,9 +17,9 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [plantName, setPlantName] = useState("");
-  const [identificationResult, setIdentificationResult] = useState<PlantData | GeminiPlantData | null>(null);
+  const [identificationResult, setIdentificationResult] = useState<GeminiPlantData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [usingAI, setUsingAI] = useState(false);
+  const [identificationMethod, setIdentificationMethod] = useState<"text" | "image" | null>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -61,56 +61,50 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
     }
 
     setIsLoading(true);
+    setIdentificationResult(null);
     
-    if (plantName.trim()) {
-      // First try local database
-      const localResult = getPlantInfo(plantName.trim());
-      
-      if (localResult) {
-        setIdentificationResult(localResult);
-        setUsingAI(false);
-        setIsLoading(false);
-        toast.success("Plant found in local database!");
-        return;
-      }
-
-      // If not found locally, use Gemini AI
-      try {
-        setUsingAI(true);
-        toast.info("Searching with AI...");
+    try {
+      if (selectedFile) {
+        // AI-based image identification
+        setIdentificationMethod("image");
+        toast.info("AI is analyzing the image...");
+        
+        const identifiedPlantName = await identifyPlantFromImage(selectedFile);
+        
+        if (identifiedPlantName && identifiedPlantName !== "Unknown Plant") {
+          toast.success(`Plant identified as: ${identifiedPlantName}`);
+          
+          // Get detailed information about the identified plant
+          const plantDetails = await generatePlantInfo(identifiedPlantName);
+          
+          if (plantDetails) {
+            setIdentificationResult(plantDetails);
+            toast.success("Complete plant information retrieved!");
+          } else {
+            toast.error("Could not retrieve detailed information for this plant.");
+          }
+        } else {
+          toast.error("Could not identify the plant from the image. Please try a clearer photo or enter the plant name manually.");
+        }
+      } else if (plantName.trim()) {
+        // AI-based text search
+        setIdentificationMethod("text");
+        toast.info("AI is searching for plant information...");
         
         const aiResult = await generatePlantInfo(plantName.trim());
         
         if (aiResult) {
           setIdentificationResult(aiResult);
-          setIsLoading(false);
-          toast.success("Plant identified using AI!");
+          toast.success("Plant information retrieved from AI!");
         } else {
           toast.error("Plant not found. Please check the name and try again!");
-          setIsLoading(false);
         }
-      } catch (error) {
-        console.error('AI identification error:', error);
-        toast.error("AI service unavailable. Please try again later!");
-        setIsLoading(false);
       }
-    } else {
-      // For image upload, simulate identification (in real app, this would call AI API)
-      setTimeout(() => {
-        const plants = ["rose", "tulsi", "aloe vera", "snake plant", "money plant"];
-        const randomPlant = plants[Math.floor(Math.random() * plants.length)];
-        const result = getPlantInfo(randomPlant);
-        
-        if (result) {
-          setIdentificationResult(result);
-          setUsingAI(false);
-          setIsLoading(false);
-          toast.success("Plant identified from image!");
-        } else {
-          toast.error("Unable to identify plant from image. Please try again!");
-          setIsLoading(false);
-        }
-      }, 2000);
+    } catch (error) {
+      console.error('Plant identification error:', error);
+      toast.error("AI service unavailable. Please try again later!");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -127,17 +121,15 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Plant Identification & Care Guide
+            AI Plant Identification & Care Guide
           </h1>
           <p className="text-lg text-gray-600">
-            Upload a photo or enter a plant name to get personalized care instructions
+            Upload a photo or enter a plant name to get AI-powered plant identification and care instructions
           </p>
-          {usingAI && (
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <Sparkles className="h-4 w-4 text-purple-600" />
-              <span className="text-sm text-purple-600 font-medium">Powered by Google Gemini AI</span>
-            </div>
-          )}
+          <div className="flex items-center justify-center gap-2 mt-2">
+            <Sparkles className="h-4 w-4 text-purple-600" />
+            <span className="text-sm text-purple-600 font-medium">Powered by Google Gemini AI</span>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
@@ -146,17 +138,17 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-green-700">
                 <Camera className="h-5 w-5" />
-                Plant Identification
+                AI Plant Identification
               </CardTitle>
               <CardDescription>
-                Choose how you'd like to identify your plant
+                Choose how you'd like to identify your plant using AI
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="name" className="w-full">
+              <Tabs defaultValue="upload" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="upload">Upload Photo</TabsTrigger>
-                  <TabsTrigger value="name">Enter Name</TabsTrigger>
+                  <TabsTrigger value="upload">AI Image Analysis</TabsTrigger>
+                  <TabsTrigger value="name">AI Text Search</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="upload" className="space-y-4">
@@ -184,7 +176,7 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                       <>
                         <Upload className="h-12 w-12 text-green-500 mx-auto mb-4" />
                         <p className="text-sm text-gray-600 mb-4">
-                          Upload a clear photo of your plant (JPG, PNG - Max 5MB)
+                          Upload a clear photo of your plant for AI identification (JPG, PNG - Max 5MB)
                         </p>
                         <input
                           type="file"
@@ -201,19 +193,31 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                       </>
                     )}
                   </div>
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-xs text-blue-700">
+                      <Sparkles className="h-3 w-3 inline mr-1" />
+                      AI will analyze your image and identify the plant automatically
+                    </p>
+                  </div>
                 </TabsContent>
                 
                 <TabsContent value="name" className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Plant Name</label>
                     <Input
-                      placeholder="e.g., Rose, Mint, Cactus, Tomato, Sunflower"
+                      placeholder="e.g., Rose, Mint, Cactus, Tomato, Sunflower, etc."
                       value={plantName}
                       onChange={(e) => setPlantName(e.target.value)}
                       className="w-full"
                     />
                     <p className="text-xs text-gray-500">
-                      Try any plant name - AI will find detailed information
+                      AI will search for any plant name and provide detailed information
+                    </p>
+                  </div>
+                  <div className="bg-purple-50 p-3 rounded-lg">
+                    <p className="text-xs text-purple-700">
+                      <Sparkles className="h-3 w-3 inline mr-1" />
+                      AI will dynamically search and provide accurate plant information
                     </p>
                   </div>
                 </TabsContent>
@@ -227,12 +231,12 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                 {isLoading ? (
                   <>
                     <Search className="h-4 w-4 mr-2 animate-spin" />
-                    {usingAI ? "AI is analyzing..." : "Identifying Plant..."}
+                    AI is analyzing...
                   </>
                 ) : (
                   <>
-                    <Search className="h-4 w-4 mr-2" />
-                    Identify Plant
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Identify with AI
                   </>
                 )}
               </Button>
@@ -244,8 +248,8 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-green-700">
                 <Leaf className="h-5 w-5" />
-                Plant Information
-                {usingAI && identificationResult && (
+                AI Plant Analysis Results
+                {identificationResult && (
                   <Badge className="bg-purple-100 text-purple-800 ml-2">
                     <Sparkles className="h-3 w-3 mr-1" />
                     AI Generated
@@ -273,6 +277,11 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                       <Badge className="bg-blue-100 text-blue-800">
                         {identificationResult.category}
                       </Badge>
+                      {identificationMethod && (
+                        <Badge className="bg-purple-100 text-purple-800">
+                          {identificationMethod === "image" ? "Image AI" : "Text AI"}
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
@@ -353,10 +362,10 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                 <div className="text-center py-12">
                   <Leaf className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500">
-                    Enter a plant name to get AI-powered plant information
+                    Upload a plant image or enter a plant name for AI identification
                   </p>
                   <p className="text-sm text-gray-400 mt-2">
-                    Try any plant name - our AI will find detailed care instructions
+                    AI will analyze and provide comprehensive plant information
                   </p>
                 </div>
               )}

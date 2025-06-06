@@ -18,7 +18,7 @@ export interface GeminiPlantData {
 }
 
 const GEMINI_API_KEY = "AIzaSyDWMGrUGWxcNBx8buaiUTKlX52LuXXc9XI";
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
 export const generatePlantInfo = async (plantName: string): Promise<GeminiPlantData | null> => {
   const prompt = `
@@ -80,4 +80,60 @@ Only return the JSON object, no additional text. If the plant doesn't exist, ret
     console.error('Error generating plant info:', error);
     return null;
   }
+};
+
+export const identifyPlantFromImage = async (imageFile: File): Promise<string | null> => {
+  try {
+    // Convert image to base64
+    const base64Image = await fileToBase64(imageFile);
+    
+    const prompt = `
+Analyze this plant image and identify the plant. Return only the plant name in plain text, nothing else. 
+If you cannot identify the plant with confidence, return "Unknown Plant".
+Be specific with the plant name (e.g., "Rose", "Aloe Vera", "Snake Plant", etc.).
+`;
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              text: prompt
+            },
+            {
+              inline_data: {
+                mime_type: imageFile.type,
+                data: base64Image.split(',')[1] // Remove data:image/jpeg;base64, prefix
+              }
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const identifiedPlant = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    
+    return identifiedPlant || null;
+  } catch (error) {
+    console.error('Error identifying plant from image:', error);
+    return null;
+  }
+};
+
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
 };
