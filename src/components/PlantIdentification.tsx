@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,13 +179,13 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Plant Name</label>
                     <Input
-                      placeholder="e.g., Peace Lily, Monstera, Snake Plant, Aloe Vera"
+                      placeholder="e.g., Rose, Tulsi, Aloe Vera, Snake Plant, Money Plant"
                       value={plantName}
                       onChange={(e) => setPlantName(e.target.value)}
                       className="w-full"
                     />
                     <p className="text-xs text-gray-500">
-                      Try: Peace Lily, Snake Plant, Pothos, Monstera, Aloe Vera, Rubber Plant
+                      Try: Rose, Tulsi, Aloe Vera, Snake Plant, Money Plant, Marigold, Jasmine, Hibiscus, Neem, Lavender
                     </p>
                   </div>
                 </TabsContent>
@@ -237,6 +236,9 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                       <Badge variant="outline" className="border-green-300 text-green-700">
                         {identificationResult.careLevel} Care
                       </Badge>
+                      <Badge className="bg-blue-100 text-blue-800">
+                        {identificationResult.category}
+                      </Badge>
                     </div>
                   </div>
 
@@ -244,14 +246,35 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                     <div>
                       <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
                         <Sun className="h-4 w-4" />
-                        Care Instructions
+                        Detailed Care Instructions
                       </h4>
-                      <div className="space-y-2 text-sm bg-green-50 p-4 rounded-lg">
-                        <p><strong>💧 Watering:</strong> {identificationResult.care.watering}</p>
-                        <p><strong>☀️ Sunlight:</strong> {identificationResult.care.sunlight}</p>
-                        <p><strong>🌱 Soil:</strong> {identificationResult.care.soil}</p>
-                        <p><strong>🧪 Fertilizer:</strong> {identificationResult.care.fertilizer}</p>
-                        <p><strong>🌡️ Temperature:</strong> {identificationResult.care.temperature}</p>
+                      <div className="space-y-3 text-sm bg-green-50 p-4 rounded-lg">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="bg-white p-3 rounded-lg">
+                            <p><strong>💧 Watering:</strong></p>
+                            <p className="text-gray-700">{identificationResult.wateringFrequency}</p>
+                            <p className="text-xs text-gray-600">Amount: {identificationResult.waterAmount}</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg">
+                            <p><strong>☀️ Sunlight:</strong></p>
+                            <p className="text-gray-700">{identificationResult.sunlight}</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg">
+                            <p><strong>🌱 Soil:</strong></p>
+                            <p className="text-gray-700">{identificationResult.soilType}</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg">
+                            <p><strong>🧪 Fertilizer:</strong></p>
+                            <p className="text-gray-700">{identificationResult.fertilizer}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold text-gray-800 mb-2">⚠️ Precautions</h4>
+                      <div className="bg-yellow-50 p-3 rounded-lg">
+                        <p className="text-sm text-yellow-800">{identificationResult.precautions}</p>
                       </div>
                     </div>
 
@@ -266,26 +289,28 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                       </div>
                     </div>
 
-                    <div>
-                      <h4 className="font-semibold text-gray-800 mb-2">⚠️ Common Issues</h4>
-                      <div className="text-sm space-y-1">
-                        {identificationResult.commonIssues.map((issue: string, index: number) => (
-                          <p key={index} className="text-gray-600">• {issue}</p>
-                        ))}
+                    {identificationResult.commonIssues && (
+                      <div>
+                        <h4 className="font-semibold text-gray-800 mb-2">🔧 Common Issues</h4>
+                        <div className="text-sm space-y-1">
+                          {identificationResult.commonIssues.map((issue: string, index: number) => (
+                            <p key={index} className="text-gray-600">• {issue}</p>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div className="bg-yellow-50 p-3 rounded-lg">
                         <h5 className="font-semibold text-yellow-800 flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
                           Best Season
                         </h5>
-                        <p className="text-yellow-700">{identificationResult.bestSeason}</p>
+                        <p className="text-yellow-700">{identificationResult.season}</p>
                       </div>
                       <div className="bg-purple-50 p-3 rounded-lg">
                         <h5 className="font-semibold text-purple-800">Growth Time</h5>
-                        <p className="text-purple-700">{identificationResult.growthTime}</p>
+                        <p className="text-purple-700">{identificationResult.growthTime || "Varies"}</p>
                       </div>
                     </div>
                   </div>
