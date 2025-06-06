@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Camera, Search, Upload, Leaf, Sun, Calendar, X } from "lucide-react";
+import { Camera, Search, Upload, Leaf, Sun, Calendar, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { getPlantInfo, PlantData } from "@/data/plantDatabase";
+import { generatePlantInfo, GeminiPlantData } from "@/utils/geminiApi";
 
 interface PlantIdentificationProps {
   onBack: () => void;
@@ -16,8 +17,9 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [plantName, setPlantName] = useState("");
-  const [identificationResult, setIdentificationResult] = useState<PlantData | null>(null);
+  const [identificationResult, setIdentificationResult] = useState<PlantData | GeminiPlantData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [usingAI, setUsingAI] = useState(false);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -60,36 +62,56 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
 
     setIsLoading(true);
     
-    // Simulate AI processing
-    setTimeout(() => {
-      let result: PlantData | null = null;
+    if (plantName.trim()) {
+      // First try local database
+      const localResult = getPlantInfo(plantName.trim());
       
-      if (plantName.trim()) {
-        // Search by name
-        result = getPlantInfo(plantName.trim());
+      if (localResult) {
+        setIdentificationResult(localResult);
+        setUsingAI(false);
+        setIsLoading(false);
+        toast.success("Plant found in local database!");
+        return;
+      }
+
+      // If not found locally, use Gemini AI
+      try {
+        setUsingAI(true);
+        toast.info("Searching with AI...");
         
-        if (!result) {
-          toast.error("Plant not found in our database. Try a different name!");
+        const aiResult = await generatePlantInfo(plantName.trim());
+        
+        if (aiResult) {
+          setIdentificationResult(aiResult);
           setIsLoading(false);
-          return;
+          toast.success("Plant identified using AI!");
+        } else {
+          toast.error("Plant not found. Please check the name and try again!");
+          setIsLoading(false);
         }
-      } else {
-        // For image upload, simulate identification (in real app, this would call AI API)
-        // For demo, randomly select a plant from database
-        const plants = ["peace lily", "snake plant", "pothos", "monstera", "aloe vera", "rubber plant"];
+      } catch (error) {
+        console.error('AI identification error:', error);
+        toast.error("AI service unavailable. Please try again later!");
+        setIsLoading(false);
+      }
+    } else {
+      // For image upload, simulate identification (in real app, this would call AI API)
+      setTimeout(() => {
+        const plants = ["rose", "tulsi", "aloe vera", "snake plant", "money plant"];
         const randomPlant = plants[Math.floor(Math.random() * plants.length)];
-        result = getPlantInfo(randomPlant);
-      }
-      
-      if (result) {
-        setIdentificationResult(result);
-        setIsLoading(false);
-        toast.success("Plant identified successfully!");
-      } else {
-        toast.error("Unable to identify plant. Please try again!");
-        setIsLoading(false);
-      }
-    }, 2000);
+        const result = getPlantInfo(randomPlant);
+        
+        if (result) {
+          setIdentificationResult(result);
+          setUsingAI(false);
+          setIsLoading(false);
+          toast.success("Plant identified from image!");
+        } else {
+          toast.error("Unable to identify plant from image. Please try again!");
+          setIsLoading(false);
+        }
+      }, 2000);
+    }
   };
 
   return (
@@ -110,6 +132,12 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
           <p className="text-lg text-gray-600">
             Upload a photo or enter a plant name to get personalized care instructions
           </p>
+          {usingAI && (
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Sparkles className="h-4 w-4 text-purple-600" />
+              <span className="text-sm text-purple-600 font-medium">Powered by Google Gemini AI</span>
+            </div>
+          )}
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
@@ -125,7 +153,7 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="upload" className="w-full">
+              <Tabs defaultValue="name" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="upload">Upload Photo</TabsTrigger>
                   <TabsTrigger value="name">Enter Name</TabsTrigger>
@@ -179,13 +207,13 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Plant Name</label>
                     <Input
-                      placeholder="e.g., Rose, Tulsi, Aloe Vera, Snake Plant, Money Plant"
+                      placeholder="e.g., Rose, Mint, Cactus, Tomato, Sunflower"
                       value={plantName}
                       onChange={(e) => setPlantName(e.target.value)}
                       className="w-full"
                     />
                     <p className="text-xs text-gray-500">
-                      Try: Rose, Tulsi, Aloe Vera, Snake Plant, Money Plant, Marigold, Jasmine, Hibiscus, Neem, Lavender
+                      Try any plant name - AI will find detailed information
                     </p>
                   </div>
                 </TabsContent>
@@ -199,7 +227,7 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                 {isLoading ? (
                   <>
                     <Search className="h-4 w-4 mr-2 animate-spin" />
-                    Identifying Plant...
+                    {usingAI ? "AI is analyzing..." : "Identifying Plant..."}
                   </>
                 ) : (
                   <>
@@ -217,6 +245,12 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
               <CardTitle className="flex items-center gap-2 text-green-700">
                 <Leaf className="h-5 w-5" />
                 Plant Information
+                {usingAI && identificationResult && (
+                  <Badge className="bg-purple-100 text-purple-800 ml-2">
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    AI Generated
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -229,7 +263,7 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                     <p className="text-sm text-gray-600 italic">
                       {identificationResult.scientificName}
                     </p>
-                    <div className="flex justify-center gap-2 mt-2">
+                    <div className="flex justify-center gap-2 mt-2 flex-wrap">
                       <Badge className="bg-green-100 text-green-800">
                         {identificationResult.confidence}% Confidence
                       </Badge>
@@ -319,7 +353,10 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                 <div className="text-center py-12">
                   <Leaf className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500">
-                    Upload a plant photo or enter a plant name to get started
+                    Enter a plant name to get AI-powered plant information
+                  </p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Try any plant name - our AI will find detailed care instructions
                   </p>
                 </div>
               )}
