@@ -185,10 +185,10 @@ const PlantIdentification = ({ onBack }: PlantIdentificationProps) => {
                           className="hidden"
                           id="plant-upload"
                         />
-                        <label htmlFor="plant-upload">
-                          <Button variant="outline" className="cursor-pointer border-green-300 hover:bg-green-50">
+                        <label htmlFor="plant-upload" className="cursor-pointer">
+                          <div className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-green-300 bg-background hover:bg-green-50 hover:text-accent-foreground h-10 px-4 py-2">
                             Choose File
-                          </Button>
+                          </div>
                         </label>
                       </>
                     )}
