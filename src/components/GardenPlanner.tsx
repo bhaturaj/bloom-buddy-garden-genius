@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Leaf, Sun, Calendar, Plus, MapPin, Clock } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,18 +12,36 @@ interface GardenPlannerProps {
   onBack: () => void;
 }
 
+interface PlantRecommendation {
+  name: string;
+  scientificName: string;
+  purpose: string;
+  position: string;
+  careLevel: string;
+  growthTime: string;
+  benefits: string[];
+  whySelected: string;
+  wateringFrequency: string;
+  waterAmount: string;
+  sunlight: string;
+  soilType: string;
+  fertilizer: string;
+  precautions: string;
+}
+
 const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
   const [spaceSize, setSpaceSize] = useState("");
+  const [customArea, setCustomArea] = useState("");
   const [purpose, setPurpose] = useState("");
   const [recommendations, setRecommendations] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const spaceSizes = [
-    { value: "balcony", label: "Small Balcony (2x3 ft)", size: "2x3 ft" },
-    { value: "small", label: "Small Garden (4x4 ft)", size: "4x4 ft" },
-    { value: "medium", label: "Medium Garden (6x6 ft)", size: "6x6 ft" },
-    { value: "large", label: "Large Garden (8x8 ft)", size: "8x8 ft" },
-    { value: "custom", label: "Custom Size", size: "Custom" }
+    { value: "small", label: "Small Garden", area: 16 }, // 4x4 ft
+    { value: "medium", label: "Medium Garden", area: 36 }, // 6x6 ft
+    { value: "large", label: "Large Garden", area: 64 }, // 8x8 ft
+    { value: "very-large", label: "Very Large Garden", area: 100 }, // 10x10 ft
+    { value: "custom", label: "Custom Size", area: 0 }
   ];
 
   const purposes = [
@@ -33,130 +52,148 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
     { value: "mixed", label: "🍀 Mix & Match", desc: "Combination of all benefits" }
   ];
 
+  const calculatePlantCount = (area: number): number => {
+    // Using 1.5 sq.ft per plant as specified
+    return Math.floor(area / 1.5);
+  };
+
+  const getGardenArea = (): number => {
+    if (spaceSize === "custom") {
+      return parseFloat(customArea) || 0;
+    }
+    const selectedSpace = spaceSizes.find(s => s.value === spaceSize);
+    return selectedSpace?.area || 0;
+  };
+
+  const generateAIRecommendations = async (plantCount: number, gardenPurpose: string): Promise<PlantRecommendation[]> => {
+    const GEMINI_API_KEY = "AIzaSyDWMGrUGWxcNBx8buaiUTKlX52LuXXc9XI";
+    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+
+    const purposeMapping: { [key: string]: string } = {
+      flower: "flowering plants that produce beautiful blooms",
+      aesthetic: "plants with attractive foliage and good visual appeal",
+      medicinal: "ayurvedic and medicinal plants with therapeutic properties",
+      air: "air-purifying plants that clean indoor/outdoor air",
+      mixed: "a diverse mix of flowering, medicinal, air-purifying and attractive plants"
+    };
+
+    const prompt = `
+    Generate exactly ${plantCount} plant recommendations for a garden focused on ${purposeMapping[gardenPurpose]}.
+    
+    Return ONLY a valid JSON array with this exact format:
+    [
+      {
+        "name": "Plant Name",
+        "scientificName": "Scientific name",
+        "purpose": "Main purpose/benefit",
+        "position": "Where to place in garden",
+        "careLevel": "Easy/Medium/Hard",
+        "growthTime": "Time to maturity",
+        "benefits": ["benefit1", "benefit2", "benefit3"],
+        "whySelected": "Why this plant is perfect for this garden type",
+        "wateringFrequency": "How often to water",
+        "waterAmount": "Amount of water (in ml)",
+        "sunlight": "Light requirements",
+        "soilType": "Soil type needed",
+        "fertilizer": "Fertilizer requirements",
+        "precautions": "Important care notes"
+      }
+    ]
+    
+    Important:
+    - Ensure each plant genuinely fits the ${gardenPurpose} category
+    - Provide diverse plant options (different sizes, care levels, etc.)
+    - Make sure all plants are suitable for home gardening
+    - Return exactly ${plantCount} plants
+    - ONLY return the JSON array, no additional text
+    `;
+
+    try {
+      const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!generatedText) {
+        throw new Error('No response from Gemini API');
+      }
+
+      // Clean and parse the JSON response
+      const cleanedText = generatedText.replace(/```json\n?|\n?```/g, '').trim();
+      const plantData = JSON.parse(cleanedText);
+      
+      return Array.isArray(plantData) ? plantData : [];
+    } catch (error) {
+      console.error('Error generating AI recommendations:', error);
+      toast.error('Failed to generate AI recommendations. Using fallback data.');
+      return [];
+    }
+  };
+
   const generateRecommendations = async () => {
     if (!spaceSize || !purpose) {
       toast.error("Please select both space size and garden purpose!");
       return;
     }
 
+    if (spaceSize === "custom" && (!customArea || parseFloat(customArea) <= 0)) {
+      toast.error("Please enter a valid custom area!");
+      return;
+    }
+
     setIsLoading(true);
 
-    setTimeout(() => {
-      const spaceInfo = spaceSizes.find(s => s.value === spaceSize);
-      const purposeInfo = purposes.find(p => p.value === purpose);
+    try {
+      const area = getGardenArea();
+      const plantCount = calculatePlantCount(area);
       
-      // Generate recommendations based on purpose
-      let plantsData = [];
-      
-      if (purpose === "flower") {
-        plantsData = [
-          {
-            name: "Peace Lily",
-            scientificName: "Spathiphyllum wallisii",
-            purpose: "Beautiful white flowers",
-            position: "Center arrangement",
-            careLevel: "Medium",
-            growthTime: "3-6 months",
-            benefits: ["White flowers", "Air purifying", "Low light tolerant"],
-            whySelected: "Produces elegant white flowers that bloom regularly with proper care"
-          },
-          {
-            name: "African Violet",
-            scientificName: "Saintpaulia ionantha",
-            purpose: "Colorful flowers",
-            position: "Front border",
-            careLevel: "Medium",
-            growthTime: "2-4 months",
-            benefits: ["Purple/pink flowers", "Compact size", "Year-round blooming"],
-            whySelected: "Small flowering plant perfect for limited space with continuous blooms"
-          }
-        ];
-      } else if (purpose === "air") {
-        plantsData = [
-          {
-            name: "Snake Plant",
-            scientificName: "Sansevieria trifasciata",
-            purpose: "Air purification",
-            position: "Corner placement",
-            careLevel: "Low",
-            growthTime: "6-12 months",
-            benefits: ["Releases oxygen at night", "Removes toxins", "Low maintenance"],
-            whySelected: "One of the best air purifiers, perfect for bedrooms and low-light areas"
-          },
-          {
-            name: "Spider Plant",
-            scientificName: "Chlorophytum comosum",
-            purpose: "Air cleaning",
-            position: "Hanging or elevated",
-            careLevel: "Low",
-            growthTime: "2-4 months",
-            benefits: ["Fast air purification", "Easy propagation", "Pet-safe"],
-            whySelected: "Excellent air purifier that's safe for pets and produces baby plants"
-          }
-        ];
-      } else if (purpose === "medicinal") {
-        plantsData = [
-          {
-            name: "Aloe Vera",
-            scientificName: "Aloe barbadensis miller",
-            purpose: "Healing and skincare",
-            position: "Sunny spot",
-            careLevel: "Low",
-            growthTime: "4-6 months",
-            benefits: ["Burn relief", "Skin healing", "Anti-inflammatory"],
-            whySelected: "Essential medicinal plant with proven healing properties for skin conditions"
-          },
-          {
-            name: "Tulsi (Holy Basil)",
-            scientificName: "Ocimum tenuiflorum",
-            purpose: "Ayurvedic medicine",
-            position: "Central location",
-            careLevel: "Medium",
-            growthTime: "2-3 months",
-            benefits: ["Respiratory health", "Stress relief", "Immunity boost"],
-            whySelected: "Sacred plant in Ayurveda with multiple health benefits and easy to grow"
-          }
-        ];
-      } else {
-        // Default mix
-        plantsData = [
-          {
-            name: "Pothos",
-            scientificName: "Epipremnum aureum",
-            purpose: "Versatile trailing plant",
-            position: "Hanging or trailing",
-            careLevel: "Low",
-            growthTime: "2-3 months",
-            benefits: ["Air purifying", "Fast growth", "Easy propagation"],
-            whySelected: "Perfect beginner plant that grows quickly and looks great anywhere"
-          },
-          {
-            name: "Peace Lily",
-            scientificName: "Spathiphyllum wallisii",
-            purpose: "Flowers and air purification",
-            position: "Medium height area",
-            careLevel: "Medium",
-            growthTime: "3-6 months",
-            benefits: ["White flowers", "Air cleaning", "Humidity indicator"],
-            whySelected: "Combines beauty and function with elegant flowers and air purification"
-          }
-        ];
+      if (plantCount < 1) {
+        toast.error("Area is too small for any plants. Minimum 1.5 sq.ft required.");
+        setIsLoading(false);
+        return;
       }
 
+      const spaceInfo = spaceSize === "custom" 
+        ? { label: `Custom Garden (${customArea} sq.ft)`, area: `${customArea} sq.ft` }
+        : { ...spaceSizes.find(s => s.value === spaceSize), area: `${area} sq.ft` };
+      
+      const purposeInfo = purposes.find(p => p.value === purpose);
+      
+      // Generate AI recommendations
+      const aiPlants = await generateAIRecommendations(plantCount, purpose);
+      
       const mockRecommendations = {
         spaceInfo: {
           size: spaceInfo?.label,
           purpose: purposeInfo?.label,
-          area: spaceInfo?.size
+          area: spaceInfo?.area,
+          totalPlants: plantCount
         },
-        plants: plantsData,
+        plants: aiPlants,
         arrangement: {
-          layout: `Optimized ${spaceInfo?.size} arrangement for ${purposeInfo?.desc.toLowerCase()}`,
+          layout: `Optimized ${spaceInfo?.area} arrangement for ${plantCount} plants focused on ${purposeInfo?.desc.toLowerCase()}`,
           tips: [
             "Place taller plants in the back or corners",
             "Group plants with similar water needs together", 
             "Leave adequate space for growth and maintenance",
-            "Consider light requirements when positioning plants"
+            "Consider light requirements when positioning plants",
+            `Space plants approximately 1.5 sq.ft apart for optimal growth`
           ]
         },
         maintenance: {
@@ -167,9 +204,13 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
       };
 
       setRecommendations(mockRecommendations);
+      toast.success(`Garden plan generated successfully! ${plantCount} plants recommended for your ${area} sq.ft space.`);
+    } catch (error) {
+      console.error('Error generating recommendations:', error);
+      toast.error('Failed to generate recommendations. Please try again.');
+    } finally {
       setIsLoading(false);
-      toast.success("Garden plan generated successfully!");
-    }, 2500);
+    }
   };
 
   return (
@@ -217,12 +258,33 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
                   <SelectContent>
                     {spaceSizes.map((size) => (
                       <SelectItem key={size.value} value={size.value}>
-                        {size.label}
+                        {size.label} {size.area > 0 && `(${size.area} sq.ft)`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {spaceSize === "custom" && (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium">
+                    Custom Area (square feet)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="Enter area in sq.ft"
+                    value={customArea}
+                    onChange={(e) => setCustomArea(e.target.value)}
+                    min="1"
+                    step="0.5"
+                  />
+                  {customArea && (
+                    <p className="text-xs text-gray-600">
+                      Can fit approximately {calculatePlantCount(parseFloat(customArea) || 0)} plants
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-3">
                 <label className="text-sm font-medium flex items-center gap-2">
@@ -254,7 +316,7 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
                 {isLoading ? (
                   <>
                     <Sun className="h-4 w-4 mr-2 animate-spin" />
-                    Generating Plan...
+                    Generating AI Plan...
                   </>
                 ) : (
                   <>
@@ -271,7 +333,7 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-700">
                 <Sun className="h-5 w-5" />
-                Garden Recommendations
+                AI Garden Recommendations
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -279,21 +341,22 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
                 <div className="space-y-6">
                   <div className="border-b pb-4 bg-blue-50 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-blue-700 mb-2">
-                      Your Garden Plan
+                      Your AI-Generated Garden Plan
                     </h3>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <p><strong>Space:</strong> {recommendations.spaceInfo.area}</p>
-                      <p><strong>Purpose:</strong> {recommendations.spaceInfo.purpose?.replace('🌸 ', '').replace('🪴 ', '').replace('🌿 ', '').replace('💨 ', '').replace('🍀 ', '')}</p>
+                      <p><strong>Plants:</strong> {recommendations.spaceInfo.totalPlants}</p>
+                      <p className="col-span-2"><strong>Purpose:</strong> {recommendations.spaceInfo.purpose?.replace(/🌸|🪴|🌿|💨|🍀/g, '').trim()}</p>
                     </div>
                   </div>
 
                   <div>
                     <h4 className="font-semibold text-blue-700 mb-3 flex items-center gap-2">
                       <Leaf className="h-4 w-4" />
-                      Recommended Plants
+                      AI-Recommended Plants ({recommendations.plants.length})
                     </h4>
-                    <div className="space-y-4">
-                      {recommendations.plants.map((plant: any, index: number) => (
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                      {recommendations.plants.map((plant: PlantRecommendation, index: number) => (
                         <div key={index} className="border border-blue-200 rounded-lg p-4 bg-blue-50">
                           <div className="flex justify-between items-start mb-2">
                             <h5 className="font-medium text-blue-800">{plant.name}</h5>
@@ -308,6 +371,8 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
                           <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                             <p><strong>Position:</strong> {plant.position}</p>
                             <p><strong>Growth:</strong> {plant.growthTime}</p>
+                            <p><strong>Water:</strong> {plant.wateringFrequency}</p>
+                            <p><strong>Light:</strong> {plant.sunlight}</p>
                           </div>
                           <div className="flex flex-wrap gap-1 mt-2">
                             {plant.benefits.map((benefit: string, idx: number) => (
@@ -337,7 +402,7 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
                 <div className="text-center py-12">
                   <Sun className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500">
-                    Configure your space and purpose to get personalized recommendations
+                    Configure your space and purpose to get AI-powered personalized recommendations
                   </p>
                 </div>
               )}
