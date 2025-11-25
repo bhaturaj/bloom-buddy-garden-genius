@@ -17,7 +17,7 @@ export interface GeminiPlantData {
   confidence: number;
 }
 
-const GEMINI_API_KEY = "AIzaSyDWMGrUGWxcNBx8buaiUTKlX52LuXXc9XI";
+const GEMINI_API_KEY = "AIzaSyCegbRdodyjpaMPtwIgp0_6gV9EhwGX7yc";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
 export const generatePlantInfo = async (plantName: string): Promise<GeminiPlantData | null> => {
