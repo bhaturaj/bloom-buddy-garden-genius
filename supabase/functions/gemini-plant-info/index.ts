@@ -60,6 +60,8 @@ Be specific with the plant name (e.g., "Rose", "Aloe Vera", "Snake Plant", etc.)
 
     } else if (type === 'plant-info') {
       // Get detailed plant information
+      console.log('Fetching plant info for:', plantName);
+      
       const infoPrompt = `
 Please provide detailed information about the plant "${plantName}" in the following JSON format. Be accurate and specific:
 
@@ -94,15 +96,29 @@ Only return the JSON object, no additional text. If the plant doesn't exist, ret
         })
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Gemini API error response:', errorText);
+        throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      }
+
       const data = await response.json();
+      console.log('Gemini API response data:', JSON.stringify(data));
+      
       const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (!generatedText) {
-        throw new Error('No response from Gemini API');
+        console.error('No text in Gemini response:', data);
+        throw new Error('No response text from Gemini API');
       }
 
+      console.log('Generated text:', generatedText);
+      
       const cleanedText = generatedText.replace(/```json\n?|\n?```/g, '').trim();
+      console.log('Cleaned text:', cleanedText);
+      
       const plantData = JSON.parse(cleanedText);
+      console.log('Parsed plant data:', plantData);
       
       return new Response(
         JSON.stringify(plantData), 

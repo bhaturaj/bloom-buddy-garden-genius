@@ -21,6 +21,9 @@ const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gem
 
 export const generatePlantInfo = async (plantName: string): Promise<GeminiPlantData | null> => {
   try {
+    console.log('Requesting plant info for:', plantName);
+    console.log('Edge function URL:', EDGE_FUNCTION_URL);
+    
     const response = await fetch(EDGE_FUNCTION_URL, {
       method: 'POST',
       headers: {
@@ -32,11 +35,16 @@ export const generatePlantInfo = async (plantName: string): Promise<GeminiPlantD
       })
     });
 
+    console.log('Response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      const errorText = await response.text();
+      console.error('API error response:', errorText);
+      throw new Error(`API request failed: ${response.status} - ${errorText}`);
     }
 
     const plantData = await response.json();
+    console.log('Received plant data:', plantData);
     return plantData;
   } catch (error) {
     console.error('Error generating plant info:', error);
@@ -46,6 +54,8 @@ export const generatePlantInfo = async (plantName: string): Promise<GeminiPlantD
 
 export const identifyPlantFromImage = async (imageFile: File): Promise<string | null> => {
   try {
+    console.log('Identifying plant from image:', imageFile.name);
+    
     // Convert image to base64
     const base64Image = await fileToBase64(imageFile);
     const base64Data = base64Image.split(',')[1]; // Remove data:image/jpeg;base64, prefix
@@ -62,11 +72,16 @@ export const identifyPlantFromImage = async (imageFile: File): Promise<string | 
       })
     });
 
+    console.log('Image identification response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Image identification error:', errorText);
+      throw new Error(`API request failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('Identified plant:', data.plantName);
     return data.plantName || null;
   } catch (error) {
     console.error('Error identifying plant from image:', error);
