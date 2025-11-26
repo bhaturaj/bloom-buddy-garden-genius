@@ -66,60 +66,18 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
   };
 
   const generateAIRecommendations = async (plantCount: number, gardenPurpose: string): Promise<PlantRecommendation[]> => {
-    const GEMINI_API_KEY = "AIzaSyDWMGrUGWxcNBx8buaiUTKlX52LuXXc9XI";
-    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
-
-    const purposeMapping: { [key: string]: string } = {
-      flower: "flowering plants that produce beautiful blooms",
-      aesthetic: "plants with attractive foliage and good visual appeal",
-      medicinal: "ayurvedic and medicinal plants with therapeutic properties",
-      air: "air-purifying plants that clean indoor/outdoor air",
-      mixed: "a diverse mix of flowering, medicinal, air-purifying and attractive plants"
-    };
-
-    const prompt = `
-    Generate exactly ${plantCount} plant recommendations for a garden focused on ${purposeMapping[gardenPurpose]}.
-    
-    Return ONLY a valid JSON array with this exact format:
-    [
-      {
-        "name": "Plant Name",
-        "scientificName": "Scientific name",
-        "purpose": "Main purpose/benefit",
-        "position": "Where to place in garden",
-        "careLevel": "Easy/Medium/Hard",
-        "growthTime": "Time to maturity",
-        "benefits": ["benefit1", "benefit2", "benefit3"],
-        "whySelected": "Why this plant is perfect for this garden type",
-        "wateringFrequency": "How often to water",
-        "waterAmount": "Amount of water (in ml)",
-        "sunlight": "Light requirements",
-        "soilType": "Soil type needed",
-        "fertilizer": "Fertilizer requirements",
-        "precautions": "Important care notes"
-      }
-    ]
-    
-    Important:
-    - Ensure each plant genuinely fits the ${gardenPurpose} category
-    - Provide diverse plant options (different sizes, care levels, etc.)
-    - Make sure all plants are suitable for home gardening
-    - Return exactly ${plantCount} plants
-    - ONLY return the JSON array, no additional text
-    `;
+    const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gemini-plant-info`;
 
     try {
-      const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }]
+          type: 'garden-plan',
+          spaceSize: getGardenArea(),
+          purpose: gardenPurpose
         })
       });
 
@@ -128,17 +86,24 @@ const GardenPlanner = ({ onBack }: GardenPlannerProps) => {
       }
 
       const data = await response.json();
-      const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       
-      if (!generatedText) {
-        throw new Error('No response from Gemini API');
-      }
-
-      // Clean and parse the JSON response
-      const cleanedText = generatedText.replace(/```json\n?|\n?```/g, '').trim();
-      const plantData = JSON.parse(cleanedText);
-      
-      return Array.isArray(plantData) ? plantData : [];
+      // Transform the response to match expected format
+      return data.recommendations.map((plant: any) => ({
+        name: plant.name,
+        scientificName: plant.scientificName,
+        purpose: plant.whyThisPlant,
+        position: "As suggested in layout",
+        careLevel: "Medium",
+        growthTime: "3-6 months",
+        benefits: [plant.whyThisPlant],
+        whySelected: plant.whyThisPlant,
+        wateringFrequency: "As per care instructions",
+        waterAmount: "Varies",
+        sunlight: plant.careInstructions,
+        soilType: "Well-draining soil",
+        fertilizer: "Monthly",
+        precautions: plant.careInstructions
+      }));
     } catch (error) {
       console.error('Error generating AI recommendations:', error);
       toast.error('Failed to generate AI recommendations. Using fallback data.');
