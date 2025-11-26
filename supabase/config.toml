@@ -1,1 +1,4 @@
 project_id = "srpkxomhmcrugpnjqoze"
+
+[functions.gemini-plant-info]
+verify_jwt = false
