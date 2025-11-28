@@ -1,6 +1,5 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { GoogleGenAI } from "npm:@google/genai@latest";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,6 +7,7 @@ const corsHeaders = {
 };
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -22,8 +22,7 @@ serve(async (req) => {
       throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    // Initialize GoogleGenAI with API key
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    let response;
 
     if (type === 'identify-image') {
       // Plant identification from image
@@ -33,22 +32,26 @@ If you cannot identify the plant with confidence, return "Unknown Plant".
 Be specific with the plant name (e.g., "Rose", "Aloe Vera", "Snake Plant", etc.).
 `;
 
-      const contents = [
-        {
-          inlineData: {
-            mimeType: imageType,
-            data: imageData,
-          },
-        },
-        { text: identifyPrompt },
-      ];
-
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: contents,
+      response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: identifyPrompt },
+              {
+                inline_data: {
+                  mime_type: imageType,
+                  data: imageData
+                }
+              }
+            ]
+          }]
+        })
       });
 
-      const identifiedPlant = response.text?.trim();
+      const data = await response.json();
+      const identifiedPlant = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       
       return new Response(
         JSON.stringify({ plantName: identifiedPlant || null }), 
@@ -83,15 +86,29 @@ Please provide detailed information about the plant "${plantName}" in the follow
 Only return the JSON object, no additional text. If the plant doesn't exist, return null.
 `;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{ text: infoPrompt }],
+      response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: infoPrompt }]
+          }]
+        })
       });
 
-      const generatedText = response.text;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Gemini API error response:', errorText);
+        throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('Gemini API response data:', JSON.stringify(data));
+      
+      const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (!generatedText) {
-        console.error('No text in Gemini response');
+        console.error('No text in Gemini response:', data);
         throw new Error('No response text from Gemini API');
       }
 
@@ -140,12 +157,18 @@ Return your response in the following JSON format:
 Only return the JSON object, no additional text.
 `;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{ text: gardenPrompt }],
+      response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: gardenPrompt }]
+          }]
+        })
       });
 
-      const generatedText = response.text;
+      const data = await response.json();
+      const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (!generatedText) {
         throw new Error('No response from Gemini API');
