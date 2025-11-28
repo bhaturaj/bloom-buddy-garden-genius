@@ -29,16 +29,6 @@ const Index = () => {
       iconBg: "bg-blue-100",
       iconColor: "text-blue-600",
       buttonColor: "bg-blue-600 hover:bg-blue-700"
-    },
-    {
-      id: "generator",
-      title: "AI Garden Visualizer",
-      description: "Generate realistic previews of your garden design with AI",
-      icon: Sun,
-      gradient: "bg-gradient-to-br from-orange-50 to-yellow-100",
-      iconBg: "bg-orange-100",
-      iconColor: "text-orange-600",
-      buttonColor: "bg-orange-600 hover:bg-orange-700"
     }
   ];
 
