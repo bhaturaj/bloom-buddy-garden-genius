@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+const GEMINI_API_KEY = "AIzaSyDWMGrUGWxcNBx8buaiUTKlX52LuXXc9XI";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 serve(async (req) => {
@@ -17,10 +17,6 @@ serve(async (req) => {
 
   try {
     const { type, plantName, imageData, imageType, spaceSize, purpose } = await req.json();
-
-    if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not configured');
-    }
 
     let response;
 
