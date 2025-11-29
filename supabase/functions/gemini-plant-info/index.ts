@@ -22,11 +22,7 @@ serve(async (req) => {
 
     if (type === 'identify-image') {
       // Plant identification from image
-      const identifyPrompt = `
-Analyze this plant image and identify the plant. Return only the plant name in plain text, nothing else. 
-If you cannot identify the plant with confidence, return "Unknown Plant".
-Be specific with the plant name (e.g., "Rose", "Aloe Vera", "Snake Plant", etc.).
-`;
+      const identifyPrompt = `Identify the plant in this image. Return ONLY the common plant name, nothing else. Examples of valid responses: "Coleus", "Rose", "Aloe Vera", "Snake Plant". If you cannot identify it, respond with "Unknown Plant".`;
 
       response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
         method: 'POST',
@@ -46,17 +42,20 @@ Be specific with the plant name (e.g., "Rose", "Aloe Vera", "Snake Plant", etc.)
         })
       });
 
-     
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Gemini API error for image identification:', errorText);
+        throw new Error(`Gemini API error: ${response.status}`);
+      }
 
       const data = await response.json();
-
-       console.log({response})
-
+      console.log('Gemini image identification response:', JSON.stringify(data, null, 2));
 
       const identifiedPlant = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      console.log('Extracted plant name:', identifiedPlant);
       
       return new Response(
-        JSON.stringify({ plantName: identifiedPlant || null, data }), 
+        JSON.stringify({ plantName: identifiedPlant || null }), 
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
 
@@ -189,8 +188,9 @@ Only return the JSON object, no additional text.
 
   } catch (error) {
     console.error('Error in gemini-plant-info function:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ error: error.message }), 
+      JSON.stringify({ error: errorMessage }), 
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
