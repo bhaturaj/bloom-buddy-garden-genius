@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GEMINI_API_KEY = "AIzaSyDWMGrUGWxcNBx8buaiUTKlX52LuXXc9XI";
+const GEMINI_API_KEY = "AIzaSyCMile1idxBdMjJpGDW27ajCeoGfmZY46w";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 serve(async (req) => {
@@ -46,11 +46,17 @@ Be specific with the plant name (e.g., "Rose", "Aloe Vera", "Snake Plant", etc.)
         })
       });
 
+     
+
       const data = await response.json();
+
+       console.log({response})
+
+
       const identifiedPlant = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       
       return new Response(
-        JSON.stringify({ plantName: identifiedPlant || null }), 
+        JSON.stringify({ plantName: identifiedPlant || null, data }), 
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
 
